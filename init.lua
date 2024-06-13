@@ -72,6 +72,19 @@ local function getidx(tag)
     end
 end
 
+local function sort_tag(...)
+    local args = {...}
+    for _, s in ipairs(args) do
+        local tags = { table.unpack(s.tags) } -- Copy
+        table.sort(tags, function(a, b)
+            return getidx(a) < getidx(b)
+        end)
+        for i, t in ipairs(tags) do
+            t.index = i
+        end
+    end
+end
+
 --- Create one new tag with sharedtags metadata.
 -- This is mostly useful for setups with dynamic tag adding.
 -- @tparam number i The tag (global/shared) index
@@ -136,6 +149,7 @@ function sharedtags.movetag(tag, screen)
     screen = screen or awful.screen.focused()
     local oldscreen = tag.screen
 
+    local focused = screen.selected_tag
     -- If the specified tag is allocated to another screen, we need to move it,
     -- or if the tag no longer belongs to a screen.
     if oldscreen ~= screen or not oldscreen then
@@ -149,28 +163,15 @@ function sharedtags.movetag(tag, screen)
                 -- The tag has been moved away. In most cases the tag history
                 -- function will find the best match, but if we really want we can
                 -- try to find a fallback tag as well.
-                if not oldscreen.selected_tag then
-                    local newtag = awful.tag.find_fallback(oldscreen)
-                    if newtag then
-                        newtag:view_only()
-                    end
+                focused.screen = oldscreen
+                if focused then
+                    focused:view_only()
                 end
             end
         end
 
         -- Also sort the tag in the taglist, by reapplying the index. This is just a nicety.
-        local unpack = unpack or table.unpack
-        for _, s in ipairs({ screen, oldscreen or { tags = {} } }) do
-            local tags = { unpack(s.tags) } -- Copy
-            table.sort(tags, function(a, b)
-                return getidx(a) < getidx(b)
-            end)
-            for i, t in ipairs(tags) do
-                t.index = i
-            end
-        end
-
-        return true
+        sort_tag(screen, oldscreen)
     end
 
     return false
@@ -189,6 +190,24 @@ end
 function sharedtags.jumpto(tag)
     awful.screen.focus(tag.screen)
     tag:view_only()
+end
+
+function sharedtags.swaptag()
+    local focused_screen = awful.screen.focused()
+    local focused = focused_screen.selected_tag
+
+    local relative_screen = focused_screen:get_next_in_direction("left")
+    if not relative_screen then
+        relative_screen = focused_screen:get_next_in_direction("right")
+    end
+
+    local swapped = relative_screen.selected_tag
+    focused.screen = relative_screen
+    swapped.screen = focused_screen
+
+    focused:view_only()
+    swapped:view_only()
+    sort_tag(focused_screen, relative_screen)
 end
 
 --- Toggle the specified tag on the specified screen.
