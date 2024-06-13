@@ -141,57 +141,8 @@ function sharedtags.new(def)
     return tags
 end
 
---- Move the specified tag to a new screen, if necessary.
--- @param tag The tag to move.
--- @tparam[opt=awful.screen.focused()] number screen The screen to move the tag to.
--- @treturn bool Whether the tag was moved.
-function sharedtags.movetag(tag, screen)
-    screen = screen or awful.screen.focused()
-    local oldscreen = tag.screen
 
-    local focused = screen.selected_tag
-    -- If the specified tag is allocated to another screen, we need to move it,
-    -- or if the tag no longer belongs to a screen.
-    if oldscreen ~= screen or not oldscreen then
-        -- Try to find a new tag to show on the previous screen if the currently
-        -- selected tag is the one that was moved away.
-        if oldscreen then
-            local oldsel = oldscreen.selected_tag
-            tag.screen = screen
-
-            if oldsel == tag then
-                -- The tag has been moved away. In most cases the tag history
-                -- function will find the best match, but if we really want we can
-                -- try to find a fallback tag as well.
-                focused.screen = oldscreen
-                if focused then
-                    focused:view_only()
-                end
-            end
-        end
-
-        -- Also sort the tag in the taglist, by reapplying the index. This is just a nicety.
-        sort_tag(screen, oldscreen)
-    end
-
-    return false
-end
-
---- View the specified tag on the specified screen.
--- @param tag The only tag to view.
--- @tparam[opt=awful.screen.focused()] number screen The screen to view the tag on.
-function sharedtags.viewonly(tag, screen)
-    sharedtags.movetag(tag, screen)
-    tag:view_only()
-end
-
---- Move focus to screen containing tag and view the tag on that screen
--- @param tag The tag to jump to.
-function sharedtags.jumpto(tag)
-    awful.screen.focus(tag.screen)
-    tag:view_only()
-end
-
+-- Swap two focused tags between screens
 function sharedtags.swaptag()
     local focused_screen = awful.screen.focused()
     local focused = focused_screen.selected_tag
@@ -204,11 +155,34 @@ function sharedtags.swaptag()
     local swapped = relative_screen.selected_tag
     focused.screen = relative_screen
     swapped.screen = focused_screen
-
     focused:view_only()
     swapped:view_only()
+
     sort_tag(focused_screen, relative_screen)
 end
+
+--- View the specified tag on the specified screen.
+-- @param tag The only tag to view.
+-- @tparam[opt=awful.screen.focused()] number screen The screen to view the tag on.
+function sharedtags.viewonly(tag, screen)
+    screen = screen or awful.screen.focused()
+    local tagscreen = tag.screen
+
+    if tagscreen ~= screen then
+        tag:view_only()
+        sharedtags.swaptag()
+    end
+
+    tag:view_only()
+end
+
+--- Move focus to screen containing tag and view the tag on that screen
+-- @param tag The tag to jump to.
+function sharedtags.jumpto(tag)
+    awful.screen.focus(tag.screen)
+    tag:view_only()
+end
+
 
 --- Toggle the specified tag on the specified screen.
 -- The tag will be selected if the screen changes, and toggled if it does not
