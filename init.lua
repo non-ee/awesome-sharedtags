@@ -39,6 +39,42 @@ local sharedtags = {
     ]]
 }
 
+
+-- Gets an index for ordering tags.
+-- @param tag The tag to get an index for
+-- @return An int representing the tags index in the tag list
+local function getidx(tag)
+    if tag.sharedtagindex then
+        -- Add arbitrarily large number to always be at the end
+        return tag.sharedtagindex + 10
+    else
+        return tag.index
+    end
+end
+
+-- Reorder tag on specific screen
+local function sort_tag(...)
+    local args = {...}
+    for _, s in ipairs(args) do
+        local tags = { table.unpack(s.tags) } -- Copy
+        table.sort(tags, function(a, b)
+            return getidx(a) < getidx(b)
+        end)
+        for i, t in ipairs(tags) do
+            t.index = i
+        end
+    end
+end
+
+-- Set tag on a specific screen
+local function setfocus (tag, screen)
+    for _, t in ipairs(screen.tags) do
+        t.selected = false
+    end
+    tag.screen = screen
+    tag.selected = true
+end
+
 --- Attempts to salvage a tag when a screen is removed.
 -- @param tag The tag to salvage.
 local function salvage(tag)
@@ -57,35 +93,9 @@ local function salvage(tag)
 
     -- sharedtags.movetag(tag, newscreen)
     tag.screen = newscreen
-
     sort_tag(newscreen)
 
     capi.screen[newscreen]:emit_signal("tag::history::update")
-end
-
--- Gets an index for ordering tags.
--- @param tag The tag to get an index for
--- @return An int representing the tags index in the tag list
-local function getidx(tag)
-    if tag.sharedtagindex then
-        -- Add arbitrarily large number to always be at the end
-        return tag.sharedtagindex + 10
-    else
-        return tag.index
-    end
-end
-
-function sort_tag(...)
-    local args = {...}
-    for _, s in ipairs(args) do
-        local tags = { table.unpack(s.tags) } -- Copy
-        table.sort(tags, function(a, b)
-            return getidx(a) < getidx(b)
-        end)
-        for i, t in ipairs(tags) do
-            t.index = i
-        end
-    end
 end
 
 --- Create one new tag with sharedtags metadata.
@@ -147,24 +157,23 @@ end
 
 -- Swap two focused tags between screens
 function sharedtags.swaptag()
-
     if capi.screen:count() == 1 then
         return
     end
 
     local focused_screen = awful.screen.focused()
-    local focused = focused_screen.selected_tag
-
     local relative_screen = focused_screen:get_next_in_direction("left")
+
     if not relative_screen then
         relative_screen = focused_screen:get_next_in_direction("right")
     end
 
-    local swapped = relative_screen.selected_tag
-    focused.screen = relative_screen
-    swapped.screen = focused_screen
-    focused:view_only()
-    swapped:view_only()
+    -- Get the each tag of focused screen
+    local focused = focused_screen.selected_tag
+    local target = relative_screen.selected_tag
+
+    focused:swap(target)
+    setfocus(target, focused_screen)
 
     sort_tag(focused_screen, relative_screen)
 end
@@ -177,15 +186,17 @@ function sharedtags.viewonly(tag, screen)
     local tagscreen = tag.screen
 
     if tagscreen ~= screen then
-        if tag ~= tagscreen.selected_tag then
-            tag.screen = screen
-            sort_tag(screen)
+        if not tag.selected then
+            setfocus(tag, screen)
         else
-            sharedtags.swaptag()
+            local focused = screen.selected_tag
+            tag:swap(focused)
+            focused.selected = true
         end
     end
-
     tag:view_only()
+
+    sort_tag(screen, tagscreen)
 end
 
 --- Move focus to screen containing tag and view the tag on that screen
