@@ -55,7 +55,10 @@ local function salvage(tag)
     -- Make sure the tag isn't selected when moved to the new screen.
     tag.selected = false
 
-    sharedtags.movetag(tag, newscreen)
+    -- sharedtags.movetag(tag, newscreen)
+    tag.screen = newscreen
+
+    sort_tag(newscreen)
 
     capi.screen[newscreen]:emit_signal("tag::history::update")
 end
@@ -72,7 +75,7 @@ local function getidx(tag)
     end
 end
 
-local function sort_tag(...)
+function sort_tag(...)
     local args = {...}
     for _, s in ipairs(args) do
         local tags = { table.unpack(s.tags) } -- Copy
@@ -145,6 +148,10 @@ end
 -- Swap two focused tags between screens
 function sharedtags.swaptag()
 
+    if capi.screen:count() == 1 then
+        return
+    end
+
     local focused_screen = awful.screen.focused()
     local focused = focused_screen.selected_tag
 
@@ -170,9 +177,9 @@ function sharedtags.viewonly(tag, screen)
     local tagscreen = tag.screen
 
     if tagscreen ~= screen then
-        -- tag:view_only()
         if tag ~= tagscreen.selected_tag then
             tag.screen = screen
+            sort_tag(screen)
         else
             sharedtags.swaptag()
         end
