@@ -144,6 +144,7 @@ end
 
 -- Swap two focused tags between screens
 function sharedtags.swaptag()
+
     local focused_screen = awful.screen.focused()
     local focused = focused_screen.selected_tag
 
@@ -169,8 +170,12 @@ function sharedtags.viewonly(tag, screen)
     local tagscreen = tag.screen
 
     if tagscreen ~= screen then
-        tag:view_only()
-        sharedtags.swaptag()
+        -- tag:view_only()
+        if tag ~= tagscreen.selected_tag then
+            tag.screen = screen
+        else
+            sharedtags.swaptag()
+        end
     end
 
     tag:view_only()
