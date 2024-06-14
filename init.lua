@@ -72,19 +72,6 @@ local function getidx(tag)
     end
 end
 
-local function sort_tag(...)
-    local args = {...}
-    for _, s in ipairs(args) do
-        local tags = { table.unpack(s.tags) } -- Copy
-        table.sort(tags, function(a, b)
-            return getidx(a) < getidx(b)
-        end)
-        for i, t in ipairs(tags) do
-            t.index = i
-        end
-    end
-end
-
 --- Create one new tag with sharedtags metadata.
 -- This is mostly useful for setups with dynamic tag adding.
 -- @tparam number i The tag (global/shared) index
@@ -141,43 +128,59 @@ function sharedtags.new(def)
     return tags
 end
 
+--- Move the specified tag to a new screen, if necessary.
+-- @param tag The tag to move.
+-- @tparam[opt=awful.screen.focused()] number screen The screen to move the tag to.
+-- @treturn bool Whether the tag was moved.
+function sharedtags.movetag(tag, screen)
+    screen = screen or awful.screen.focused()
+    local oldscreen = tag.screen
 
--- Swap two focused tags between screens
-function sharedtags.swaptag()
+    -- If the specified tag is allocated to another screen, we need to move it,
+    -- or if the tag no longer belongs to a screen.
+    if oldscreen ~= screen or not oldscreen then
+        -- Try to find a new tag to show on the previous screen if the currently
+        -- selected tag is the one that was moved away.
+        if oldscreen then
+            local oldsel = oldscreen.selected_tag
+            tag.screen = screen
 
-    local focused_screen = awful.screen.focused()
-    local focused = focused_screen.selected_tag
+            if oldsel == tag then
+                -- The tag has been moved away. In most cases the tag history
+                -- function will find the best match, but if we really want we can
+                -- try to find a fallback tag as well.
+                if not oldscreen.selected_tag then
+                    local newtag = awful.tag.find_fallback(oldscreen)
+                    if newtag then
+                        newtag:view_only()
+                    end
+                end
+            end
+        end
 
-    local relative_screen = focused_screen:get_next_in_direction("left")
-    if not relative_screen then
-        relative_screen = focused_screen:get_next_in_direction("right")
+        -- Also sort the tag in the taglist, by reapplying the index. This is just a nicety.
+        local unpack = unpack or table.unpack
+        for _, s in ipairs({ screen, oldscreen or { tags = {} } }) do
+            local tags = { unpack(s.tags) } -- Copy
+            table.sort(tags, function(a, b)
+                return getidx(a) < getidx(b)
+            end)
+            for i, t in ipairs(tags) do
+                t.index = i
+            end
+        end
+
+        return true
     end
 
-    local swapped = relative_screen.selected_tag
-    focused.screen = relative_screen
-    swapped.screen = focused_screen
-    focused:view_only()
-    swapped:view_only()
-
-    sort_tag(focused_screen, relative_screen)
+    return false
 end
 
 --- View the specified tag on the specified screen.
 -- @param tag The only tag to view.
 -- @tparam[opt=awful.screen.focused()] number screen The screen to view the tag on.
 function sharedtags.viewonly(tag, screen)
-    screen = screen or awful.screen.focused()
-    local tagscreen = tag.screen
-
-    if tagscreen ~= screen then
-        -- tag:view_only()
-        if tag ~= tagscreen.selected_tag then
-            tag.screen = screen
-        else
-            sharedtags.swaptag()
-        end
-    end
-
+    sharedtags.movetag(tag, screen)
     tag:view_only()
 end
 
@@ -187,7 +190,6 @@ function sharedtags.jumpto(tag)
     awful.screen.focus(tag.screen)
     tag:view_only()
 end
-
 
 --- Toggle the specified tag on the specified screen.
 -- The tag will be selected if the screen changes, and toggled if it does not
